@@ -1,0 +1,922 @@
+{
+  "info": {
+    "_postman_id": "6f3c2a1e-8d4b-4c7a-9e2f-1a5b7c9d0e21",
+    "name": "AirproX CRM API",
+    "description": "AirproX CRM Node.js APIs. Verify OTP sets the airpropx_token cookie; Postman keeps it, so run Auth > Request OTP, put the SMS code in the `otp` variable, run Verify OTP, then use any other request. Everything except Health needs that login. Full reference: Docs/AuthDashboardApi.md and Docs/CrmApi.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api/v1/airpropx"
+    },
+    {
+      "key": "mobile",
+      "value": "9505036142"
+    },
+    {
+      "key": "role",
+      "value": "Sales Director"
+    },
+    {
+      "key": "otp",
+      "value": ""
+    },
+    {
+      "key": "franchiseType",
+      "value": "39"
+    },
+    {
+      "key": "leadId",
+      "value": "1"
+    },
+    {
+      "key": "salesManagerId",
+      "value": "1"
+    },
+    {
+      "key": "cityId",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Request OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"{{mobile}}\",\n  \"role\": \"{{role}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/request-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "request-otp"
+              ]
+            },
+            "description": "Sends a 6-digit OTP (valid 5 minutes) by SMS to a mobile number that belongs to an active account with the requested role.\n\nrole: \"Sales Director\" or \"Franchise Sales Manager\"\n\n200 OTP sent successfully\n400 validation (missing fields, invalid mobile, Invalid role)\n401 Invalid mobile number or role\n403 account inactive / no login access\n409 multiple active accounts\n429 cooldown (30 s) or too many OTP requests\n502 SMS provider failed / not configured\n503 database unavailable"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify OTP (Login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mobile\": \"{{mobile}}\",\n  \"role\": \"{{role}}\",\n  \"otp\": \"{{otp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "description": "Verifies the OTP for the same mobile + role and logs in. Sets the HttpOnly cookie airpropx_token (the JWT is never in the body). The OTP can be used once.\n\n200 Login Successful - data: authenticated, expiresAt, user, permissions, shortcuts\n400 missing OTP / Please enter a valid 6-digit OTP\n401 Invalid OTP / OTP expired / OTP not found or expired / Invalid mobile number or role\n403 / 409 account errors (same as Request OTP)\n429 Too many failed OTP attempts"
+          },
+          "response": []
+        },
+        {
+          "name": "Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Logged-in user from the cookie (reloaded by the token's user id and role).\n\n200 User details fetched successfully - data: authenticated, expiresAt, user, permissions, shortcuts\n401 Authentication required / session expired / invalid session / access revoked"
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Clears the airpropx_token cookie. Always 200 Logout Successful."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Franchise Lead Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard"
+              ]
+            },
+            "description": "Dashboard of the logged-in Sales Director / Franchise Sales Manager: franchiseTypes, summaryCards, modules (groups -> status cards with counts).\n\n200 Dashboard details fetched successfully\n401 Authentication required\n403 You do not have permission to access this resource"
+          },
+          "response": []
+        },
+        {
+          "name": "Franchise Lead Dashboard (by Franchise Type)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard?franchiseType={{franchiseType}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "dashboard"
+              ],
+              "query": [
+                {
+                  "key": "franchiseType",
+                  "value": "{{franchiseType}}"
+                }
+              ]
+            },
+            "description": "Same dashboard, counts limited to one franchise type id.\n\n400 franchiseType must be a positive integer"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Lookups",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Public. Uptime + database check."
+          },
+          "response": []
+        },
+        {
+          "name": "Lead Lookups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/lookups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lookups"
+              ]
+            },
+            "description": "Franchise types, sources, statuses, modules, assignees, dropout reasons, permissions."
+          },
+          "response": []
+        },
+        {
+          "name": "Lead Status Flow",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/lead-statuses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lead-statuses"
+              ]
+            },
+            "description": "Every Active status and the statuses it can move to."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Leads",
+      "item": [
+        {
+          "name": "List Leads",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/leads?module=&status=&franchiseType=&source=&assignedTo=&dateField=followup&dateFrom=&dateTo=&search=&page=1&per_page=10&sort=&direction=asc",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leads"
+              ],
+              "query": [
+                {
+                  "key": "module",
+                  "value": ""
+                },
+                {
+                  "key": "status",
+                  "value": ""
+                },
+                {
+                  "key": "franchiseType",
+                  "value": ""
+                },
+                {
+                  "key": "source",
+                  "value": ""
+                },
+                {
+                  "key": "assignedTo",
+                  "value": ""
+                },
+                {
+                  "key": "dateField",
+                  "value": "followup"
+                },
+                {
+                  "key": "dateFrom",
+                  "value": ""
+                },
+                {
+                  "key": "dateTo",
+                  "value": ""
+                },
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "per_page",
+                  "value": "10"
+                },
+                {
+                  "key": "sort",
+                  "value": ""
+                },
+                {
+                  "key": "direction",
+                  "value": "asc"
+                }
+              ]
+            },
+            "description": "All filters optional. module = FR-TODAY | FR-PENDING | FR-FUTURE | FR-POST-SALE; status = CALL, FOLLOWUP, ...; assignedTo = me | unassigned | Sales Director id; sort = name | date | phone | franchiseType | status | createdBy | createdAt."
+          },
+          "response": []
+        },
+        {
+          "name": "Add Lead",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerName\": \"Ravi Kumar\",\n  \"mobileNumber\": \"9000011111\",\n  \"emailId\": \"ravi@example.com\",\n  \"sourceId\": 2,\n  \"franchiseTypeId\": 40,\n  \"comments\": \"Met at expo\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/leads",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leads"
+              ]
+            },
+            "description": "201 with the lead. 400 validation, 409 duplicate mobile, 403 without can_add_lead."
+          },
+          "response": []
+        },
+        {
+          "name": "Lead Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/leads/{{leadId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leads",
+                "{{leadId}}"
+              ]
+            },
+            "description": "Lead, history, dropouts, transfers, permissions. 404 outside your scope."
+          },
+          "response": []
+        },
+        {
+          "name": "Edit Lead",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerName\": \"Ravi Kumar\",\n  \"mobileNumber\": \"9000011111\",\n  \"emailId\": \"ravi@example.com\",\n  \"sourceId\": 2,\n  \"comments\": \"Updated\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/leads/{{leadId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leads",
+                "{{leadId}}"
+              ]
+            },
+            "description": "Franchise type is not editable here (use Change Franchise Type)."
+          },
+          "response": []
+        },
+        {
+          "name": "Next Activity Options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/leads/{{leadId}}/next-activity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leads",
+                "{{leadId}}",
+                "next-activity"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Save Activity (status move)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"futureStatusTypeId\": \"8\",\n  \"futureDate\": \"2026-09-20\",\n  \"hours\": \"10\",\n  \"minutes\": \"30\",\n  \"comments\": \"Call back\",\n  \"dropoutReasonIds\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/leads/{{leadId}}/activity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leads",
+                "{{leadId}}",
+                "activity"
+              ]
+            },
+            "description": "futureStatusTypeId from Next Activity Options. A status that needs a dropout reason needs dropoutReasonIds."
+          },
+          "response": []
+        },
+        {
+          "name": "Change Franchise Type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"futureStatusTypeId\": \"change_franchise_type\",\n  \"transferType\": \"internal\",\n  \"franchiseTypeId\": 39,\n  \"futureDate\": \"\",\n  \"hours\": \"\",\n  \"minutes\": \"\",\n  \"comments\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/leads/{{leadId}}/activity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leads",
+                "{{leadId}}",
+                "activity"
+              ]
+            },
+            "description": "transferType internal | external. Needs can_change_franchise_type."
+          },
+          "response": []
+        },
+        {
+          "name": "No Response",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"noResponseDate\": \"2026-09-21\",\n  \"reason\": \"Not reachable\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/leads/{{leadId}}/no-response",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leads",
+                "{{leadId}}",
+                "no-response"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Import Leads",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"original_filename\": \"leads.xlsx\",\n  \"data\": [\n    {\n      \"row_number\": 2,\n      \"customer_name\": \"Ravi Kumar\",\n      \"mobile_number\": \"9100000001\",\n      \"email_id\": \"\",\n      \"Franchise_Type\": \"AIRP HYD 02\",\n      \"source_id\": \"FACEBOOK\",\n      \"comments\": \"\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/leads/import",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "leads",
+                "import"
+              ]
+            },
+            "description": "Franchise_Type = franchise type code, source_id = source code. Needs can_import_leads."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Change Franchise Type Lookups",
+      "item": [
+        {
+          "name": "Internal Transfer Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/change-type/internal?leadId={{leadId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "change-type",
+                "internal"
+              ],
+              "query": [
+                {
+                  "key": "leadId",
+                  "value": "{{leadId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Countries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/change-type/countries",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "change-type",
+                "countries"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "States",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/change-type/states?countryId=14",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "change-type",
+                "states"
+              ],
+              "query": [
+                {
+                  "key": "countryId",
+                  "value": "14"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/change-type/cities?stateId=4",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "change-type",
+                "cities"
+              ],
+              "query": [
+                {
+                  "key": "stateId",
+                  "value": "4"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Franchise Types by City",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/change-type/franchise-types?cityId={{cityId}}&leadId={{leadId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "change-type",
+                "franchise-types"
+              ],
+              "query": [
+                {
+                  "key": "cityId",
+                  "value": "{{cityId}}"
+                },
+                {
+                  "key": "leadId",
+                  "value": "{{leadId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Locations",
+      "item": [
+        {
+          "name": "Countries",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/locations/countries?search=&status=active",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "locations",
+                "countries"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "status",
+                  "value": "active"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "States",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/locations/states?countryCode=IN&search=&status=active",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "locations",
+                "states"
+              ],
+              "query": [
+                {
+                  "key": "countryCode",
+                  "value": "IN"
+                },
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "status",
+                  "value": "active"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/locations/cities?countryCode=IN&stateCode=TG&search=&status=active",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "locations",
+                "cities"
+              ],
+              "query": [
+                {
+                  "key": "countryCode",
+                  "value": "IN"
+                },
+                {
+                  "key": "stateCode",
+                  "value": "TG"
+                },
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "status",
+                  "value": "active"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Localities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/locations/localities?cityCode=HYD&search=&status=active&page=1&per_page=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "locations",
+                "localities"
+              ],
+              "query": [
+                {
+                  "key": "cityCode",
+                  "value": "HYD"
+                },
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "status",
+                  "value": "active"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "per_page",
+                  "value": "50"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Team",
+      "item": [
+        {
+          "name": "My Franchise Sales Managers (Sales Director)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/team/franchise-sales-managers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "team",
+                "franchise-sales-managers"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Franchise Sales Manager Details (Sales Director)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/team/franchise-sales-managers/{{salesManagerId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "team",
+                "franchise-sales-managers",
+                "{{salesManagerId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "My Sales Director (Franchise Sales Manager)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/team/sales-director",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "team",
+                "sales-director"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Franchise Type Assignments (Sales Director)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/franchise-types/assignments?assignment=all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "franchise-types",
+                "assignments"
+              ],
+              "query": [
+                {
+                  "key": "assignment",
+                  "value": "all"
+                }
+              ]
+            },
+            "description": "assignment = all | assigned | unassigned"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
