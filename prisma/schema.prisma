@@ -1,0 +1,661 @@
+// Prisma schema for the AirproX CRM tables of prod_api_terraterri (MySQL),
+// plus the shared users, master_role, master_cities and user_otps tables they use.
+//
+// Mirrors prod_api_terraterri.sql exactly: table / column names via @@map / @map,
+// primary keys, foreign keys (with their constraint names and ON DELETE / ON UPDATE
+// actions), indexes, unique constraints, defaults and nullability.
+//
+// The database schema is owned outside this project: never run `prisma migrate`
+// or `prisma db push` against it. Only `prisma generate` is used here.
+// Not representable in Prisma (still true in the database): column COMMENTs,
+// charsets / collations and `ON UPDATE CURRENT_TIMESTAMP` on updated_at columns.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- enums
+// MySQL stores enums per column; columns with the same value list share one Prisma enum.
+
+enum YesNo {
+  Y
+  N
+}
+
+enum ActiveInactive {
+  Active
+  Inactive
+}
+
+/// enum('A','I') - A = active, I = inactive
+enum ActiveFlag {
+  A
+  I
+}
+
+enum LeadScope {
+  OWN
+  FRANCHISE_TYPES
+  ALL
+}
+
+enum DateFilterType {
+  today
+  pending
+  future
+  none
+}
+
+enum DashboardLayout {
+  GROUPED
+  FLAT
+}
+
+enum LeadStatus {
+  Imported
+  Inactive
+}
+
+enum LeadOrigin {
+  Import
+  Manual
+}
+
+enum LeadHistoryActionType {
+  LEAD_CREATED
+  ACTIVITY
+  NO_RESPONSE
+  FRANCHISE_TYPE_CHANGE
+}
+
+enum TransferType {
+  internal
+  external
+}
+
+enum ImportBatchStatus {
+  Processing
+  Completed
+  Failed
+}
+
+enum ImportDuplicateStatus {
+  Duplicate
+}
+
+// ---------------------------------------------------------------- shared masters
+
+model MasterRole {
+  id          Int         @id @default(autoincrement())
+  name        String?     @db.VarChar(255)
+  description String?     @db.Text
+  roleStatus  ActiveFlag? @default(I) @map("role_status")
+  createdBy   BigInt?     @map("created_by")
+  createdDate DateTime?   @map("created_date") @db.DateTime(0)
+  updatedBy   BigInt?     @map("updated_by")
+  updatedDate DateTime?   @map("updated_date") @db.DateTime(0)
+  createdIp   String?     @map("created_ip") @db.VarChar(20)
+  updatedIp   String?     @map("updated_ip") @db.VarChar(20)
+
+  @@map("master_role")
+}
+
+model MasterCity {
+  id          Int       @id @default(autoincrement())
+  cityName    String    @map("city_name") @db.VarChar(255)
+  cityCode    String    @map("city_code") @db.VarChar(10)
+  countryCode String    @map("country_code") @db.VarChar(2)
+  stateCode   String    @map("state_code") @db.VarChar(5)
+  latitude    String?   @db.VarChar(255)
+  longitude   String?   @db.VarChar(255)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamp(0)
+
+  @@map("master_cities")
+}
+
+/// deleted_at set = inactive (location masters have no status column)
+model MasterCountry {
+  id          Int       @id @default(autoincrement())
+  countryName String    @map("country_name") @db.VarChar(255)
+  countryCode String    @map("country_code") @db.VarChar(2)
+  phoneCode   String    @map("phone_code") @db.VarChar(5)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamp(0)
+
+  @@map("master_country")
+}
+
+model MasterState {
+  id          Int       @id @default(autoincrement())
+  stateName   String    @map("state_name") @db.VarChar(255)
+  stateCode   String    @map("state_code") @db.VarChar(5)
+  countryCode String    @map("country_code") @db.VarChar(2)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamp(0)
+
+  @@map("master_states")
+}
+
+model MasterLocality {
+  id           Int       @id @default(autoincrement())
+  localityName String    @map("locality_name") @db.VarChar(255)
+  cityCode     String    @map("city_code") @db.VarChar(10)
+  countryCode  String    @map("country_code") @db.VarChar(2)
+  stateCode    String    @map("state_code") @db.VarChar(5)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamp(0)
+
+  @@map("master_locality")
+}
+
+/// users.role_id is a TEXT column holding a master_role.id - there is no foreign key.
+/// A Franchise Sales Manager is a users row whose role is "Franchise Sales Manager".
+model User {
+  id              Int         @id @default(autoincrement())
+  roleId          String?     @map("role_id") @db.Text
+  entityId        Int?        @map("entity_id")
+  firstName       String?     @map("first_name") @db.VarChar(255)
+  lastName        String?     @map("last_name") @db.VarChar(255)
+  email           String?     @db.VarChar(255)
+  mobile          String?     @db.VarChar(20)
+  username        String?     @db.VarChar(50)
+  companyName     String?     @map("company_name") @db.VarChar(255)
+  password        String?     @db.VarChar(255)
+  countryCode     String?     @map("country_code") @db.VarChar(20)
+  stateCode       String?     @map("state_code") @db.VarChar(20)
+  cityCode        String?     @map("city_code") @db.VarChar(20)
+  address         String?     @db.Text
+  userStatus      ActiveFlag? @default(I) @map("user_status")
+  property        String?     @db.VarChar(100)
+  budget          String?     @db.VarChar(100)
+  frontEndUrl     String?     @map("front_end_url") @db.VarChar(100)
+  location        String?     @db.VarChar(100)
+  createdBy       BigInt?     @map("created_by")
+  createdDate     DateTime?   @map("created_date") @db.DateTime(0)
+  updatedBy       BigInt?     @map("updated_by")
+  updatedDate     DateTime?   @map("updated_date") @db.DateTime(0)
+  createdIp       String?     @map("created_ip") @db.VarChar(20)
+  updatedIp       String?     @map("updated_ip") @db.VarChar(20)
+  projectTypeId   String?     @map("project_type_id") @db.VarChar(255)
+  otp             String?     @db.Text
+  secondaryEmail  String?     @map("secondary_email") @db.Text
+  secondaryMobile String?     @map("secondary_mobile") @db.Text
+  slug            String?     @db.Text
+  profile         String?     @db.Text
+  dateOfBirth     DateTime?   @map("date_of_birth") @db.Date
+  expoUnqCode     String?     @db.VarChar(100)
+  modelOfficeCode String?     @map("model_office_code") @db.VarChar(100)
+
+  franchiseSalesManagerDetail         FranchiseSalesManagerDetail?
+  franchiseSalesManagerFranchiseTypes FranchiseSalesManagerFranchiseType[]
+
+  @@map("users")
+}
+
+/// Login OTPs - the shared Terraterri OTP table, also used by nodeapi-services-terraterri
+model UserOtp {
+  id        Int       @id @default(autoincrement())
+  mobile    String    @db.VarChar(15)
+  otp       String    @db.VarChar(100)
+  expiresAt DateTime  @map("expires_at") @db.DateTime(0)
+  createdAt DateTime? @map("created_at") @db.DateTime(0)
+  expoId    String?   @db.VarChar(100)
+
+  @@map("user_otps")
+}
+
+// ---------------------------------------------------------------- CRM access
+
+/// Which master_role may log in to the CRM and what it may see / do.
+model FranchiseCrmRoleAccess {
+  id                     BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  /// master_role.id
+  roleId                 Int            @unique(map: "airpropx_fcra_role_unique") @map("role_id")
+  canLogin               YesNo          @default(Y) @map("can_login")
+  leadScope              LeadScope      @default(OWN) @map("lead_scope")
+  canAddLead             YesNo          @default(N) @map("can_add_lead")
+  canEditLead            YesNo          @default(N) @map("can_edit_lead")
+  canImportLeads         YesNo          @default(N) @map("can_import_leads")
+  canChangeFranchiseType YesNo          @default(Y) @map("can_change_franchise_type")
+  status                 ActiveInactive @default(Active)
+  createdBy              BigInt?        @map("created_by") @db.UnsignedBigInt
+  updatedBy              BigInt?        @map("updated_by") @db.UnsignedBigInt
+  createdAt              DateTime?      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt              DateTime?      @default(now()) @map("updated_at") @db.Timestamp(0)
+
+  @@index([status], map: "airpropx_fcra_status_index")
+  @@map("airpropx_franchise_crm_role_access")
+}
+
+model FranchiseCrmShortcut {
+  id           BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  label        String         @unique(map: "airpropx_fcs_label_unique") @db.VarChar(100)
+  /// Font Awesome class, e.g. fa fa-calendar
+  icon         String?        @db.VarChar(60)
+  /// airpropx_franchise_modules.module_code
+  moduleCode   String?        @map("module_code") @db.VarChar(50)
+  /// airpropx_franchise_status_types.system_code
+  systemCode   String?        @map("system_code") @db.VarChar(50)
+  displayOrder Int            @default(0) @map("display_order")
+  status       ActiveInactive @default(Active)
+  createdAt    DateTime?      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt    DateTime?      @default(now()) @map("updated_at") @db.Timestamp(0)
+
+  @@index([status], map: "airpropx_fcs_status_index")
+  @@map("airpropx_franchise_crm_shortcuts")
+}
+
+// ---------------------------------------------------------------- people
+
+model SalesDirector {
+  id             BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  fullName       String         @map("full_name") @db.VarChar(150)
+  dob            DateTime       @db.Date
+  dateOfJoining  DateTime       @map("date_of_joining") @db.Date
+  username       String         @db.VarChar(100)
+  primaryEmail   String         @map("primary_email") @db.VarChar(150)
+  secondaryEmail String?        @map("secondary_email") @db.VarChar(150)
+  primaryPhone   String         @map("primary_phone") @db.VarChar(20)
+  secondaryPhone String?        @map("secondary_phone") @db.VarChar(20)
+  profileImage   String         @map("profile_image") @db.VarChar(500)
+  bankDetailsDoc String?        @map("bank_details_doc") @db.VarChar(500)
+  resumeDoc      String?        @map("resume_doc") @db.VarChar(500)
+  aadharCardDoc  String?        @map("aadhar_card_doc") @db.VarChar(500)
+  panCardDoc     String?        @map("pan_card_doc") @db.VarChar(500)
+  /// master_role.id (no foreign key in the database)
+  roleId         Int?           @map("role_id")
+  status         ActiveInactive @default(Active)
+  createdBy      BigInt?        @map("created_by") @db.UnsignedBigInt
+  updatedBy      BigInt?        @map("updated_by") @db.UnsignedBigInt
+  deletedBy      BigInt?        @map("deleted_by") @db.UnsignedBigInt
+  createdAt      DateTime?      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt      DateTime?      @default(now()) @map("updated_at") @db.Timestamp(0)
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamp(0)
+
+  leads               FranchiseLead[]
+  salesManagerDetails FranchiseSalesManagerDetail[]
+  franchiseTypes      SalesDirectorFranchiseType[]
+
+  @@index([roleId], map: "airpropx_sales_directors_role_id_index")
+  @@index([username], map: "airpropx_sales_directors_username_index")
+  @@map("airpropx_sales_directors")
+}
+
+model SalesDirectorFranchiseType {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  salesDirectorId BigInt    @map("sales_director_id") @db.UnsignedBigInt
+  franchiseTypeId BigInt    @map("franchise_type_id") @db.UnsignedBigInt
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamp(0)
+
+  franchiseType FranchiseType @relation(fields: [franchiseTypeId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_sd_franchise_types_franchise_type")
+  salesDirector SalesDirector @relation(fields: [salesDirectorId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_sd_franchise_types_sales_director")
+
+  @@unique([salesDirectorId, franchiseTypeId], map: "sales_director_franchise_type_unique")
+  @@index([franchiseTypeId], map: "sd_franchise_types_franchise_type_id_index")
+  @@map("airpropx_sales_director_franchise_types")
+}
+
+model FranchiseSalesManagerDetail {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  /// users.id of the Franchise Sales Manager
+  userId          Int       @unique(map: "airpropx_fsm_details_user_unique") @map("user_id")
+  dateOfJoining   DateTime  @map("date_of_joining") @db.Date
+  /// airpropx_sales_directors.id
+  salesDirectorId BigInt?   @map("sales_director_id") @db.UnsignedBigInt
+  /// master_project_name.id
+  projectId       BigInt?   @map("project_id")
+  bankDetailsDoc  String?   @map("bank_details_doc") @db.VarChar(500)
+  resumeDoc       String?   @map("resume_doc") @db.VarChar(500)
+  aadharCardDoc   String?   @map("aadhar_card_doc") @db.VarChar(500)
+  panCardDoc      String?   @map("pan_card_doc") @db.VarChar(500)
+  createdBy       BigInt?   @map("created_by") @db.UnsignedBigInt
+  updatedBy       BigInt?   @map("updated_by") @db.UnsignedBigInt
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt       DateTime? @default(now()) @map("updated_at") @db.Timestamp(0)
+
+  salesDirector SalesDirector? @relation(fields: [salesDirectorId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "fk_airpropx_fsm_details_sales_director")
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_airpropx_fsm_details_user")
+
+  @@index([projectId], map: "airpropx_fsm_details_project_index")
+  @@index([salesDirectorId], map: "airpropx_fsm_details_sales_director_index")
+  @@map("airpropx_franchise_sales_manager_details")
+}
+
+model FranchiseSalesManagerFranchiseType {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  /// users.id of the Franchise Sales Manager
+  userId          Int       @map("user_id")
+  /// airpropx_franchise_types.id
+  franchiseTypeId BigInt    @map("franchise_type_id") @db.UnsignedBigInt
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamp(0)
+
+  franchiseType FranchiseType @relation(fields: [franchiseTypeId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_airpropx_fsm_franchise_types_type")
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_airpropx_fsm_franchise_types_user")
+
+  @@unique([userId, franchiseTypeId], map: "airpropx_fsm_franchise_type_unique")
+  @@index([franchiseTypeId], map: "airpropx_fsm_franchise_types_type_index")
+  @@map("airpropx_franchise_sales_manager_franchise_types")
+}
+
+// ---------------------------------------------------------------- franchise masters
+
+model FranchiseType {
+  id                BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  /// master_country.id (no foreign key in the database)
+  countryId         Int            @map("country_id")
+  /// master_states.id (no foreign key in the database)
+  stateId           Int            @map("state_id")
+  /// master_cities.id (no foreign key in the database)
+  cityId            Int            @map("city_id")
+  franchiseTypeName String         @map("franchise_type_name") @db.VarChar(150)
+  franchiseTypeCode String         @unique(map: "airpropx_franchise_types_code_unique") @map("franchise_type_code") @db.VarChar(120)
+  status            ActiveInactive @default(Active)
+  createdBy         BigInt?        @map("created_by") @db.UnsignedBigInt
+  updatedBy         BigInt?        @map("updated_by") @db.UnsignedBigInt
+  deletedBy         BigInt?        @map("deleted_by") @db.UnsignedBigInt
+  createdAt         DateTime?      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt         DateTime?      @default(now()) @map("updated_at") @db.Timestamp(0)
+  deletedAt         DateTime?      @map("deleted_at") @db.Timestamp(0)
+
+  leads                       FranchiseLead[]
+  importDuplicates            FranchiseLeadImportDuplicate[]
+  historyTransfersFrom        FranchiseLeadStatusHistory[]         @relation("HistoryFromFranchiseType")
+  historyTransfersTo          FranchiseLeadStatusHistory[]         @relation("HistoryToFranchiseType")
+  salesManagerFranchiseTypes  FranchiseSalesManagerFranchiseType[]
+  salesDirectorFranchiseTypes SalesDirectorFranchiseType[]
+
+  @@index([cityId], map: "airpropx_franchise_types_city_id_index")
+  @@index([countryId], map: "airpropx_franchise_types_country_id_index")
+  @@index([stateId], map: "airpropx_franchise_types_state_id_index")
+  @@map("airpropx_franchise_types")
+}
+
+model FranchiseSourceName {
+  id         BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  sourceName String     @map("source_name") @db.VarChar(150)
+  code       String     @unique(map: "airpropx_franchise_source_names_code_unique") @db.VarChar(60)
+  status     ActiveFlag @default(A)
+  createdBy  BigInt?    @map("created_by") @db.UnsignedBigInt
+  updatedBy  BigInt?    @map("updated_by") @db.UnsignedBigInt
+  deletedBy  BigInt?    @map("deleted_by") @db.UnsignedBigInt
+  createdAt  DateTime?  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt  DateTime?  @default(now()) @map("updated_at") @db.Timestamp(0)
+  deletedAt  DateTime?  @map("deleted_at") @db.Timestamp(0)
+
+  leads            FranchiseLead[]
+  importDuplicates FranchiseLeadImportDuplicate[]
+
+  @@index([deletedAt], map: "airpropx_franchise_source_names_deleted_at_index")
+  @@index([status], map: "airpropx_franchise_source_names_status_index")
+  @@map("airpropx_franchise_source_names")
+}
+
+model FranchiseModule {
+  id              BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  moduleName      String          @map("module_name") @db.VarChar(150)
+  moduleCode      String          @unique(map: "airpropx_franchise_modules_code_unique") @map("module_code") @db.VarChar(50)
+  /// today = follow-up date is today, pending = before today, future = after today, none = no date filter
+  dateFilterType  DateFilterType  @default(none) @map("date_filter_type")
+  /// GROUPED = cards grouped by sub module, FLAT = single card row
+  dashboardLayout DashboardLayout @default(GROUPED) @map("dashboard_layout")
+  description     String?         @db.Text
+  status          ActiveInactive  @default(Active)
+  createdBy       BigInt?         @map("created_by") @db.UnsignedBigInt
+  updatedBy       BigInt?         @map("updated_by") @db.UnsignedBigInt
+  deletedBy       BigInt?         @map("deleted_by") @db.UnsignedBigInt
+  createdAt       DateTime?       @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt       DateTime?       @default(now()) @map("updated_at") @db.Timestamp(0)
+  deletedAt       DateTime?       @map("deleted_at") @db.Timestamp(0)
+
+  statusTypes FranchiseStatusType[]
+  subModules  FranchiseSubModule[]
+
+  @@index([deletedAt], map: "airpropx_franchise_modules_deleted_at_index")
+  @@index([status], map: "airpropx_franchise_modules_status_index")
+  @@map("airpropx_franchise_modules")
+}
+
+model FranchiseSubModule {
+  id                BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  franchiseModuleId BigInt         @map("franchise_module_id") @db.UnsignedBigInt
+  subModuleName     String         @map("sub_module_name") @db.VarChar(150)
+  subModuleCode     String         @map("sub_module_code") @db.VarChar(50)
+  description       String?        @db.Text
+  status            ActiveInactive @default(Active)
+  createdBy         BigInt?        @map("created_by") @db.UnsignedBigInt
+  updatedBy         BigInt?        @map("updated_by") @db.UnsignedBigInt
+  deletedBy         BigInt?        @map("deleted_by") @db.UnsignedBigInt
+  createdAt         DateTime?      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt         DateTime?      @default(now()) @map("updated_at") @db.Timestamp(0)
+  deletedAt         DateTime?      @map("deleted_at") @db.Timestamp(0)
+
+  statusTypes FranchiseStatusType[]
+  module      FranchiseModule       @relation(fields: [franchiseModuleId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_airpropx_franchise_sub_modules_module")
+
+  @@unique([franchiseModuleId, subModuleCode], map: "airpropx_franchise_sub_modules_module_code_unique")
+  @@index([deletedAt], map: "airpropx_franchise_sub_modules_deleted_at_index")
+  @@index([status], map: "airpropx_franchise_sub_modules_status_index")
+  @@map("airpropx_franchise_sub_modules")
+}
+
+model FranchiseStatusType {
+  id                    BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  franchiseModuleId     BigInt         @map("franchise_module_id") @db.UnsignedBigInt
+  franchiseSubModuleId  BigInt         @map("franchise_sub_module_id") @db.UnsignedBigInt
+  statusTypeName        String         @map("status_type_name") @db.VarChar(150)
+  statusTypeCode        String         @map("status_type_code") @db.VarChar(50)
+  /// Logical status key shared by the per-module rows of the same status
+  systemCode            String?        @map("system_code") @db.VarChar(50)
+  isEntryStatus         YesNo          @default(N) @map("is_entry_status")
+  isNoResponseStatus    YesNo          @default(N) @map("is_no_response_status")
+  requiresDropoutReason YesNo          @default(N) @map("requires_dropout_reason")
+  showOnDashboard       YesNo          @default(Y) @map("show_on_dashboard")
+  showAsSummaryCard     YesNo          @default(N) @map("show_as_summary_card")
+  summaryCardOrder      Int            @default(0) @map("summary_card_order")
+  icon                  String?        @db.VarChar(500)
+  status                ActiveInactive @default(Active)
+  createdBy             BigInt?        @map("created_by") @db.UnsignedBigInt
+  updatedBy             BigInt?        @map("updated_by") @db.UnsignedBigInt
+  deletedBy             BigInt?        @map("deleted_by") @db.UnsignedBigInt
+  createdAt             DateTime?      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt             DateTime?      @default(now()) @map("updated_at") @db.Timestamp(0)
+  deletedAt             DateTime?      @map("deleted_at") @db.Timestamp(0)
+
+  completedInHistory FranchiseLeadStatusHistory[] @relation("HistoryCompletedStatus")
+  futureInHistory    FranchiseLeadStatusHistory[] @relation("HistoryFutureStatus")
+  module             FranchiseModule              @relation(fields: [franchiseModuleId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_airpropx_franchise_status_types_module")
+  subModule          FranchiseSubModule           @relation(fields: [franchiseSubModuleId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_airpropx_franchise_status_types_sub_module")
+
+  @@unique([franchiseSubModuleId, statusTypeCode], map: "airpropx_franchise_status_types_sub_module_code_unique")
+  @@index([deletedAt], map: "airpropx_franchise_status_types_deleted_at_index")
+  @@index([franchiseModuleId], map: "airpropx_franchise_status_types_module_index")
+  @@index([status], map: "airpropx_franchise_status_types_status_index")
+  @@index([systemCode], map: "airpropx_franchise_status_types_system_code_index")
+  @@map("airpropx_franchise_status_types")
+}
+
+model FranchiseStatusTransition {
+  id             BigInt         @id @default(autoincrement()) @db.UnsignedBigInt
+  fromSystemCode String         @map("from_system_code") @db.VarChar(50)
+  toSystemCode   String         @map("to_system_code") @db.VarChar(50)
+  displayOrder   Int            @default(0) @map("display_order")
+  status         ActiveInactive @default(Active)
+  createdBy      BigInt?        @map("created_by") @db.UnsignedBigInt
+  updatedBy      BigInt?        @map("updated_by") @db.UnsignedBigInt
+  createdAt      DateTime?      @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt      DateTime?      @default(now()) @map("updated_at") @db.Timestamp(0)
+
+  @@unique([fromSystemCode, toSystemCode], map: "airpropx_fst_from_to_unique")
+  @@index([status], map: "airpropx_fst_status_index")
+  @@map("airpropx_franchise_status_transitions")
+}
+
+model FranchiseLeadDropoutReason {
+  id            BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  dropoutReason String     @unique(map: "airpropx_fldr_reason_unique") @map("dropout_reason") @db.VarChar(255)
+  displayOrder  Int        @default(0) @map("display_order")
+  status        ActiveFlag @default(A)
+  createdBy     BigInt?    @map("created_by") @db.UnsignedBigInt
+  updatedBy     BigInt?    @map("updated_by") @db.UnsignedBigInt
+  deletedBy     BigInt?    @map("deleted_by") @db.UnsignedBigInt
+  createdAt     DateTime?  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt     DateTime?  @default(now()) @map("updated_at") @db.Timestamp(0)
+  deletedAt     DateTime?  @map("deleted_at") @db.Timestamp(0)
+
+  dropouts FranchiseLeadDropout[]
+
+  @@index([status], map: "airpropx_fldr_status_index")
+  @@map("airpropx_franchise_lead_dropout_reasons")
+}
+
+// ---------------------------------------------------------------- leads
+
+model FranchiseLeadImportBatch {
+  id               BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  originalFilename String?           @map("original_filename") @db.VarChar(255)
+  totalRows        Int               @default(0) @map("total_rows")
+  importedCount    Int               @default(0) @map("imported_count")
+  duplicateCount   Int               @default(0) @map("duplicate_count")
+  failedCount      Int               @default(0) @map("failed_count")
+  status           ImportBatchStatus @default(Processing)
+  uploadedBy       BigInt?           @map("uploaded_by") @db.UnsignedBigInt
+  uploadedByRoleId Int?              @map("uploaded_by_role_id")
+  createdAt        DateTime?         @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt        DateTime?         @default(now()) @map("updated_at") @db.Timestamp(0)
+
+  duplicates FranchiseLeadImportDuplicate[]
+  leads      FranchiseLead[]
+
+  @@index([status], map: "airpropx_fli_batches_status_index")
+  @@index([uploadedBy], map: "airpropx_fli_batches_uploaded_by_index")
+  @@map("airpropx_franchise_lead_import_batches")
+}
+
+model FranchiseLeadImportDuplicate {
+  id              BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  importBatchId   BigInt                @map("import_batch_id") @db.UnsignedBigInt
+  rowNumber       Int?                  @map("row_number")
+  customerName    String                @map("customer_name") @db.VarChar(150)
+  mobileNumber    String                @map("mobile_number") @db.VarChar(20)
+  emailId         String?               @map("email_id") @db.VarChar(150)
+  comments        String?               @db.Text
+  franchiseTypeId BigInt                @map("franchise_type_id") @db.UnsignedBigInt
+  sourceId        BigInt                @map("source_id") @db.UnsignedBigInt
+  duplicateReason String?               @map("duplicate_reason") @db.VarChar(500)
+  status          ImportDuplicateStatus @default(Duplicate)
+  createdAt       DateTime?             @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt       DateTime?             @default(now()) @map("updated_at") @db.Timestamp(0)
+
+  importBatch   FranchiseLeadImportBatch @relation(fields: [importBatchId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_airpropx_fli_duplicates_batch")
+  franchiseType FranchiseType            @relation(fields: [franchiseTypeId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_airpropx_fli_duplicates_franchise_type")
+  source        FranchiseSourceName      @relation(fields: [sourceId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_airpropx_fli_duplicates_source")
+
+  @@index([importBatchId], map: "airpropx_fli_duplicates_batch_index")
+  @@index([franchiseTypeId], map: "airpropx_fli_duplicates_franchise_type_index")
+  @@index([mobileNumber], map: "airpropx_fli_duplicates_mobile_index")
+  @@index([sourceId], map: "airpropx_fli_duplicates_source_index")
+  @@map("airpropx_franchise_lead_import_duplicates")
+}
+
+model FranchiseLead {
+  id              BigInt     @id @default(autoincrement()) @db.UnsignedBigInt
+  importBatchId   BigInt?    @map("import_batch_id") @db.UnsignedBigInt
+  rowNumber       Int?       @map("row_number")
+  customerName    String     @map("customer_name") @db.VarChar(150)
+  mobileNumber    String     @map("mobile_number") @db.VarChar(20)
+  emailId         String?    @map("email_id") @db.VarChar(150)
+  comments        String?    @db.Text
+  franchiseTypeId BigInt     @map("franchise_type_id") @db.UnsignedBigInt
+  sourceId        BigInt     @map("source_id") @db.UnsignedBigInt
+  salesDirectorId BigInt?    @map("sales_director_id") @db.UnsignedBigInt
+  status          LeadStatus @default(Imported)
+  leadOrigin      LeadOrigin @default(Import) @map("lead_origin")
+  createdBy       BigInt?    @map("created_by") @db.UnsignedBigInt
+  /// master_role.id of created_by; NULL = created from the admin panel (users.id)
+  createdByRoleId Int?       @map("created_by_role_id")
+  createdByName   String?    @map("created_by_name") @db.VarChar(150)
+  updatedBy       BigInt?    @map("updated_by") @db.UnsignedBigInt
+  updatedByRoleId Int?       @map("updated_by_role_id")
+  deletedBy       BigInt?    @map("deleted_by") @db.UnsignedBigInt
+  createdAt       DateTime?  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt       DateTime?  @default(now()) @map("updated_at") @db.Timestamp(0)
+  deletedAt       DateTime?  @map("deleted_at") @db.Timestamp(0)
+
+  dropouts      FranchiseLeadDropout[]
+  statusHistory FranchiseLeadStatusHistory[]
+  importBatch   FranchiseLeadImportBatch?    @relation(fields: [importBatchId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_airpropx_franchise_leads_batch")
+  franchiseType FranchiseType                @relation(fields: [franchiseTypeId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_airpropx_franchise_leads_franchise_type")
+  salesDirector SalesDirector?               @relation(fields: [salesDirectorId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "fk_airpropx_franchise_leads_sales_director")
+  source        FranchiseSourceName          @relation(fields: [sourceId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_airpropx_franchise_leads_source")
+
+  @@index([importBatchId], map: "airpropx_franchise_leads_batch_index")
+  @@index([createdAt], map: "airpropx_franchise_leads_created_at_index")
+  @@index([franchiseTypeId], map: "airpropx_franchise_leads_franchise_type_index")
+  @@index([mobileNumber], map: "airpropx_franchise_leads_mobile_index")
+  @@index([salesDirectorId], map: "airpropx_franchise_leads_sales_director_index")
+  @@index([sourceId], map: "airpropx_franchise_leads_source_index")
+  @@index([status], map: "airpropx_franchise_leads_status_index")
+  @@map("airpropx_franchise_leads")
+}
+
+model FranchiseLeadStatusHistory {
+  id                  BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  leadId              BigInt                @map("lead_id") @db.UnsignedBigInt
+  actionType          LeadHistoryActionType @default(ACTIVITY) @map("action_type")
+  completedStatusId   BigInt?               @map("completed_status_id") @db.UnsignedBigInt
+  futureStatusId      BigInt?               @map("future_status_id") @db.UnsignedBigInt
+  futureStatusDate    DateTime?             @map("future_status_date") @db.Date
+  futureStatusHours   Int?                  @map("future_status_hours") @db.UnsignedTinyInt
+  futureStatusMinutes Int?                  @map("future_status_minutes") @db.UnsignedTinyInt
+  comments            String?               @db.Text
+  transferType        TransferType?         @map("transfer_type")
+  fromFranchiseTypeId BigInt?               @map("from_franchise_type_id") @db.UnsignedBigInt
+  toFranchiseTypeId   BigInt?               @map("to_franchise_type_id") @db.UnsignedBigInt
+  isCurrent           YesNo                 @default(Y) @map("is_current")
+  createdBy           BigInt?               @map("created_by") @db.UnsignedBigInt
+  createdByRoleId     Int?                  @map("created_by_role_id")
+  createdByName       String?               @map("created_by_name") @db.VarChar(150)
+  createdIp           String?               @map("created_ip") @db.VarChar(45)
+  updatedBy           BigInt?               @map("updated_by") @db.UnsignedBigInt
+  createdAt           DateTime?             @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt           DateTime?             @default(now()) @map("updated_at") @db.Timestamp(0)
+  deletedAt           DateTime?             @map("deleted_at") @db.Timestamp(0)
+
+  dropouts          FranchiseLeadDropout[]
+  completedStatus   FranchiseStatusType?   @relation("HistoryCompletedStatus", fields: [completedStatusId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "fk_airpropx_flsh_completed_status")
+  fromFranchiseType FranchiseType?         @relation("HistoryFromFranchiseType", fields: [fromFranchiseTypeId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "fk_airpropx_flsh_from_type")
+  futureStatus      FranchiseStatusType?   @relation("HistoryFutureStatus", fields: [futureStatusId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "fk_airpropx_flsh_future_status")
+  lead              FranchiseLead          @relation(fields: [leadId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_airpropx_flsh_lead")
+  toFranchiseType   FranchiseType?         @relation("HistoryToFranchiseType", fields: [toFranchiseTypeId], references: [id], onDelete: SetNull, onUpdate: Cascade, map: "fk_airpropx_flsh_to_type")
+
+  @@index([completedStatusId], map: "airpropx_flsh_completed_status_index")
+  @@index([fromFranchiseTypeId], map: "airpropx_flsh_from_type_index")
+  @@index([futureStatusDate], map: "airpropx_flsh_future_date_index")
+  @@index([futureStatusId], map: "airpropx_flsh_future_status_index")
+  @@index([leadId, isCurrent], map: "airpropx_flsh_lead_current_index")
+  @@index([toFranchiseTypeId], map: "airpropx_flsh_to_type_index")
+  @@map("airpropx_franchise_lead_status_history")
+}
+
+model FranchiseLeadDropout {
+  id              BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  statusHistoryId BigInt    @map("status_history_id") @db.UnsignedBigInt
+  leadId          BigInt    @map("lead_id") @db.UnsignedBigInt
+  dropoutReasonId BigInt    @map("dropout_reason_id") @db.UnsignedBigInt
+  comments        String?   @db.Text
+  createdBy       BigInt?   @map("created_by") @db.UnsignedBigInt
+  createdByRoleId Int?      @map("created_by_role_id")
+  createdIp       String?   @map("created_ip") @db.VarChar(45)
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamp(0)
+
+  statusHistory FranchiseLeadStatusHistory @relation(fields: [statusHistoryId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_airpropx_fld_history")
+  lead          FranchiseLead              @relation(fields: [leadId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "fk_airpropx_fld_lead")
+  dropoutReason FranchiseLeadDropoutReason @relation(fields: [dropoutReasonId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "fk_airpropx_fld_reason")
+
+  @@index([statusHistoryId], map: "airpropx_fld_history_index")
+  @@index([leadId], map: "airpropx_fld_lead_index")
+  @@index([dropoutReasonId], map: "airpropx_fld_reason_index")
+  @@map("airpropx_franchise_lead_dropouts")
+}

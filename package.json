@@ -1,0 +1,35 @@
+{
+  "name": "crm.aipropx-node-apis",
+  "version": "1.0.0",
+  "description": "AirproX CRM Node.js APIs",
+  "main": "Server.js",
+  "private": true,
+  "scripts": {
+    "start": "node Server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "cross-env UV_THREADPOOL_SIZE=128 nodemon Server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^4.22.3",
+    "express-rate-limit": "^8.7.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.4.0"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "nodemon": "^3.1.14",
+    "prisma": "6.19.3"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2"
+  },
+  "resolutions": {
+    "deepmerge-ts": "^8.0.2"
+  }
+}
